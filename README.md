@@ -18,7 +18,7 @@ The name **Rabduction!** comes from (R)ust + a similar old-school Android game c
 ```
 $ git clone https://github.com/ritiek/rabduction
 $ cd rabduction
-$ cargo run --release
+$ cargo run --features bevy/dynamic --release
 ```
 
 ## License
