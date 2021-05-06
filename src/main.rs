@@ -4,27 +4,29 @@ use bevy::sprite::collide_aabb::collide;
 // use bevy_window;
 
 use rand::{thread_rng, Rng};
+use rand::seq::SliceRandom;
 
 const GRAVITY: f32 = 0.5;
 
-const PLAYER_SIZE: (f32, f32) = (20., 20.);
-const BRICK_SIZE: (f32, f32) = (60., 20.);
-
-
 #[derive(Default, Debug, PartialEq, Clone)]
-struct Materials {
-    player_material: Handle<ColorMaterial>,
-    brick_material: Handle<ColorMaterial>,
+struct Sounds {
+    collisions: Vec<Handle<AudioSource>>,
+    background: Handle<AudioSource>
 }
 
-#[derive(Default, Debug, PartialEq, Copy, Clone)]
+#[derive(Default, Debug, PartialEq, Clone)]
 struct Player {
+    material: Handle<ColorMaterial>,
+    size: (f32, f32),
     velocity: f32,
     dead: bool,
 }
 
-#[derive(Default, Debug, PartialEq, Copy, Clone)]
-struct Brick;
+#[derive(Default, Debug, PartialEq, Clone)]
+struct Brick {
+    material: Handle<ColorMaterial>,
+    size: (f32, f32),
+}
 
 #[derive(Default, Debug, PartialEq, Copy, Clone)]
 struct Scoreboard {
@@ -34,10 +36,37 @@ struct Scoreboard {
 fn setup(mut commands: Commands, asset_server: ResMut<AssetServer>, mut materials: ResMut<Assets<ColorMaterial>>) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     commands.spawn_bundle(UiCameraBundle::default());
-    commands.insert_resource(Materials {
-        player_material: materials.add(Color::rgb(0.7, 0.7, 0.7).into()),
-        brick_material: materials.add(Color::rgb(0.7, 0.1, 0.2).into()),
+
+    commands.insert_resource(Player {
+        material: materials.add(asset_server.load("sprites/tux-1.png").into()),
+        size: (25.0, 40.0),
+        velocity: 25.0,
+        dead: false,
     });
+    commands.insert_resource(
+        vec![
+            Brick {
+                material: materials.add(asset_server.load("sprites/platform-1.png").into()),
+                size: (60.0, 20.0),
+            },
+            Brick {
+                material: materials.add(asset_server.load("sprites/platform-2.png").into()),
+                size: (90.0, 20.0),
+            },
+        ]
+    );
+    commands.insert_resource(
+        Sounds {
+            collisions: vec![
+                asset_server.load("sounds/coll-1.mp3"),
+                asset_server.load("sounds/coll-2.mp3"),
+                asset_server.load("sounds/coll-3.mp3"),
+                asset_server.load("sounds/coll-4.mp3"),
+            ],
+            // FIXME: Replace with some actual background music
+            background: asset_server.load("sounds/coll-4.mp3"),
+        }
+    );
     commands.insert_resource(Scoreboard {
         score: 0,
     });
@@ -76,7 +105,7 @@ fn scoreboard_system(mut transformations: Query<&mut Transform, With<Player>>, p
             let mut text = query.single_mut().unwrap();
             if player.dead {
                 text.sections[0].value = format!("Final Score: {}", scoreboard.score);
-            } else{
+            } else {
                 scoreboard.score += 1;
                 text.sections[0].value = format!("Score: {}", scoreboard.score);
             }
@@ -84,18 +113,20 @@ fn scoreboard_system(mut transformations: Query<&mut Transform, With<Player>>, p
     }
 }
 
-fn spawn_player(commands: &mut Commands, materials: &Res<Materials>) {
+fn spawn_player(commands: &mut Commands, player: &Res<Player>) {
     commands
         .spawn_bundle(SpriteBundle {
-            material: materials.player_material.clone(),
-            sprite: Sprite::new(Vec2::new(PLAYER_SIZE.0, PLAYER_SIZE.1)),
+            material: player.material.clone(),
+            sprite: Sprite::new(Vec2::new(player.size.0, player.size.1)),
             transform: Transform::from_translation(
                 Vec3::new(0., -350., 0.,)),
             ..Default::default()
         })
         .insert(Player {
-            velocity: 25.0,
-            dead: false,
+            material: player.material.clone(),
+            size: player.size,
+            velocity: player.velocity,
+            dead: player.dead,
         });
 }
 
@@ -104,7 +135,7 @@ fn player_movement_input(
     mut transformations: Query<&mut Transform,
     With<Player>>,
     mut commands: Commands,
-    materials: Res<Materials>) {
+    player: Res<Player>) {
     for key_pressed in keyboard_input.get_pressed() {
         if let Some(mut transformation) = transformations.iter_mut().next() {
             match key_pressed {
@@ -114,7 +145,7 @@ fn player_movement_input(
             }
         } else {
             match key_pressed {
-                _ => spawn_player(&mut commands, &materials),
+                _ => spawn_player(&mut commands, &player),
             }
         }
     }
@@ -125,25 +156,29 @@ fn player_movement(mut transformations: Query<&mut Transform, With<Player>>, mut
         if let Some(mut player) = player.iter_mut().next() {
             player.velocity -= GRAVITY;
             transformation.translation.y += player.velocity;
-            if transformation.translation.y < -350. {
+            if transformation.translation.y < -400. {
                 player.dead = true;
             }
         }
     }
 }
 
-fn spawn_brick(mut commands: Commands, materials: Res<Materials>) {
+fn spawn_brick(mut commands: Commands, bricks: Res<Vec<Brick>>) {
     let mut rng = thread_rng();
     let random_pos = rng.gen_range(-150.0..=150.0);
+    let brick = bricks.choose(&mut rand::thread_rng()).unwrap();
     commands
         .spawn_bundle(SpriteBundle {
-            material: materials.brick_material.clone(),
-            sprite: Sprite::new(Vec2::new(BRICK_SIZE.0, BRICK_SIZE.1)),
+            material: brick.material.clone(),
+            sprite: Sprite::new(Vec2::new(brick.size.0, brick.size.1)),
             transform: Transform::from_translation(
                 Vec3::new(random_pos, 250., 0.,)),
             ..Default::default()
         })
-        .insert(Brick);
+        .insert(Brick {
+            material: brick.material.clone(),
+            size: brick.size.clone(),
+        });
 }
 
 fn brick_movement(mut transformations: Query<&mut Transform, With<Brick>>) {
@@ -152,25 +187,30 @@ fn brick_movement(mut transformations: Query<&mut Transform, With<Brick>>) {
     }
 }
 
-fn is_colliding(player: &Transform, brick: &Transform) -> bool {
+fn is_colliding(player: &Transform, player_size: (f32, f32), brick: &Transform, brick_size: (f32, f32)) -> bool {
     collide(
-        player.translation, Vec2::new(PLAYER_SIZE.0, PLAYER_SIZE.1),
-        brick.translation, Vec2::new(BRICK_SIZE.0, BRICK_SIZE.1)
+        player.translation, Vec2::new(player_size.0, player_size.1),
+        brick.translation, Vec2::new(brick_size.0, brick_size.1)
     ).is_some()
 }
 
 fn player_brick_collision(
     mut player: Query<&mut Player>,
+    bricks: Query<&Brick>,
     player_transformation: Query<&Transform, With<Player>>,
-    brick_transformations: Query<&Transform, With<Brick>>
+    brick_transformations: Query<&Transform, With<Brick>>,
+    audio: Res<Audio>,
+    sounds: Res<Sounds>,
 ) {
     if let Some(mut player) = player.iter_mut().next() {
-        // The collision should happen only when the player is coming down
+        // The collision should happen only when the player falls on a platform from above
         if player.velocity < 0. {
             if let Some(player_transformation) = player_transformation.iter().next() {
-                for brick_transformation in brick_transformations.iter() {
-                    if is_colliding(player_transformation, brick_transformation) {
+                for (brick, brick_transformation) in bricks.iter().zip(brick_transformations.iter()) {
+                    if is_colliding(player_transformation, player.size, brick_transformation, brick.size) {
                         player.velocity = 12.;
+                        let collision_sound = sounds.collisions.choose(&mut rand::thread_rng()).unwrap();
+                        audio.play(collision_sound.clone());
                     }
                 }
             }
