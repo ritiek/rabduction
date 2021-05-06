@@ -99,16 +99,14 @@ fn setup(mut commands: Commands, asset_server: ResMut<AssetServer>, mut material
     });
 }
 
-fn scoreboard_system(mut transformations: Query<&mut Transform, With<Player>>, player: Query<&Player>, mut scoreboard: ResMut<Scoreboard>, mut query: Query<&mut Text>) {
+fn scoreboard_system(mut transformations: Query<&mut Transform, With<Player>>, player: Res<Player>, mut scoreboard: ResMut<Scoreboard>, mut query: Query<&mut Text>) {
     if let Some(_) = transformations.iter_mut().next() {
-        if let Some(player) = player.iter().next() {
-            let mut text = query.single_mut().unwrap();
-            if player.dead {
-                text.sections[0].value = format!("Final Score: {}", scoreboard.score);
-            } else {
-                scoreboard.score += 1;
-                text.sections[0].value = format!("Score: {}", scoreboard.score);
-            }
+        let mut text = query.single_mut().unwrap();
+        if player.dead {
+            text.sections[0].value = format!("Final Score: {}", scoreboard.score);
+        } else {
+            scoreboard.score += 1;
+            text.sections[0].value = format!("Score: {}", scoreboard.score);
         }
     }
 }
@@ -139,8 +137,14 @@ fn player_movement_input(
     for key_pressed in keyboard_input.get_pressed() {
         if let Some(mut transformation) = transformations.iter_mut().next() {
             match key_pressed {
-                KeyCode::Left => transformation.translation.x -= 3.,
-                KeyCode::Right => transformation.translation.x += 3.,
+                KeyCode::Left => {
+                    transformation.translation.x -= 3.0;
+                    transformation.rotation = Quat::from_rotation_y(std::f32::consts::PI);
+                },
+                KeyCode::Right => {
+                    transformation.translation.x += 3.0;
+                    transformation.rotation = Quat::default();
+                }
                 _ => {},
             }
         } else {
@@ -151,14 +155,12 @@ fn player_movement_input(
     }
 }
 
-fn player_movement(mut transformations: Query<&mut Transform, With<Player>>, mut player: Query<&mut Player>) {
+fn player_movement(mut transformations: Query<&mut Transform, With<Player>>, mut player: ResMut<Player>) {
     if let Some(mut transformation) = transformations.iter_mut().next() {
-        if let Some(mut player) = player.iter_mut().next() {
-            player.velocity -= GRAVITY;
-            transformation.translation.y += player.velocity;
-            if transformation.translation.y < -400. {
-                player.dead = true;
-            }
+        player.velocity -= GRAVITY;
+        transformation.translation.y += player.velocity;
+        if transformation.translation.y < -400. {
+            player.dead = true;
         }
     }
 }
@@ -195,23 +197,21 @@ fn is_colliding(player: &Transform, player_size: (f32, f32), brick: &Transform, 
 }
 
 fn player_brick_collision(
-    mut player: Query<&mut Player>,
+    mut player: ResMut<Player>,
     bricks: Query<&Brick>,
     player_transformation: Query<&Transform, With<Player>>,
     brick_transformations: Query<&Transform, With<Brick>>,
     audio: Res<Audio>,
     sounds: Res<Sounds>,
 ) {
-    if let Some(mut player) = player.iter_mut().next() {
-        // The collision should happen only when the player falls on a platform from above
-        if player.velocity < 0. {
-            if let Some(player_transformation) = player_transformation.iter().next() {
-                for (brick, brick_transformation) in bricks.iter().zip(brick_transformations.iter()) {
-                    if is_colliding(player_transformation, player.size, brick_transformation, brick.size) {
-                        player.velocity = 12.;
-                        let collision_sound = sounds.collisions.choose(&mut rand::thread_rng()).unwrap();
-                        audio.play(collision_sound.clone());
-                    }
+    // The collision should happen only when the player falls on a platform from above
+    if player.velocity < 0. {
+        if let Some(player_transformation) = player_transformation.iter().next() {
+            for (brick, brick_transformation) in bricks.iter().zip(brick_transformations.iter()) {
+                if is_colliding(player_transformation, player.size, brick_transformation, brick.size) {
+                    player.velocity = 12.;
+                    let collision_sound = sounds.collisions.choose(&mut rand::thread_rng()).unwrap();
+                    audio.play(collision_sound.clone());
                 }
             }
         }
