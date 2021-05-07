@@ -35,9 +35,22 @@ struct Scoreboard {
     score: usize,
 }
 
+#[derive(Default, Debug, PartialEq, Copy, Clone)]
+struct Background;
+
 fn setup(mut commands: Commands, asset_server: ResMut<AssetServer>, mut materials: ResMut<Assets<ColorMaterial>>) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     commands.spawn_bundle(UiCameraBundle::default());
+
+    commands
+        .spawn_bundle(SpriteBundle {
+            material: materials.add(asset_server.load("textures/background.png").into()),
+            sprite: Sprite::new(Vec2::new(7680.0, 4320.0)),
+            transform: Transform::from_translation(
+                Vec3::new(0.0, 1650.0, 0.0,)),
+            ..Default::default()
+        })
+        .insert(Background);
 
     commands.insert_resource(Player {
         material: materials.add(asset_server.load("sprites/tux-1.png").into()),
@@ -111,6 +124,12 @@ fn scoreboard_system(mut transformations: Query<&mut Transform, With<Player>>, p
             scoreboard.score += 1;
             text.sections[0].value = format!("Score: {}", scoreboard.score);
         }
+    }
+}
+
+fn background_system(mut background: Query<&mut Transform, With<Background>>) {
+    if let Some(mut background) = background.iter_mut().next() {
+        background.translation.y -= 0.5;
     }
 }
 
@@ -211,7 +230,7 @@ fn spawn_brick(mut commands: Commands, bricks: Res<Vec<Brick>>) {
 
 fn brick_movement(mut transformations: Query<&mut Transform, With<Brick>>) {
     for mut transformation in transformations.iter_mut() {
-        transformation.translation.y -= 1.;
+        transformation.translation.y -= 1.0;
     }
 }
 
@@ -255,6 +274,7 @@ fn main() {
             height: 800.0,
             ..Default::default()
         })
+        .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
         .add_startup_system(setup.system())
         .add_system_set(
             SystemSet::new()
@@ -265,6 +285,7 @@ fn main() {
         .add_system(player_movement.system())
         .add_system(brick_movement.system())
         .add_system(player_brick_collision.system())
+        .add_system(background_system.system())
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(0.1))
