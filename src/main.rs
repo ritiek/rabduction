@@ -7,6 +7,7 @@ use rand::{thread_rng, Rng};
 use rand::seq::SliceRandom;
 
 const GRAVITY: f32 = 0.5;
+const MAX_INPUT_SPEED: f32 = 3.0;
 
 #[derive(Default, Debug, PartialEq, Clone)]
 struct Sounds {
@@ -19,6 +20,7 @@ struct Player {
     material: Handle<ColorMaterial>,
     size: (f32, f32),
     velocity: f32,
+    has_spawned: bool,
     dead: bool,
 }
 
@@ -41,6 +43,7 @@ fn setup(mut commands: Commands, asset_server: ResMut<AssetServer>, mut material
         material: materials.add(asset_server.load("sprites/tux-1.png").into()),
         size: (25.0, 40.0),
         velocity: 25.0,
+        has_spawned: false,
         dead: false,
     });
     commands.insert_resource(
@@ -111,7 +114,7 @@ fn scoreboard_system(mut transformations: Query<&mut Transform, With<Player>>, p
     }
 }
 
-fn spawn_player(commands: &mut Commands, player: &Res<Player>) {
+fn spawn_player(commands: &mut Commands, player: &ResMut<Player>) {
     commands
         .spawn_bundle(SpriteBundle {
             material: player.material.clone(),
@@ -124,32 +127,55 @@ fn spawn_player(commands: &mut Commands, player: &Res<Player>) {
             material: player.material.clone(),
             size: player.size,
             velocity: player.velocity,
+            has_spawned: player.has_spawned,
             dead: player.dead,
         });
 }
 
 fn player_movement_input(
     keyboard_input: Res<Input<KeyCode>>,
+    gamepad_input: Res<Input<GamepadButton>>,
+    axes: Res<Axis<GamepadAxis>>,
     mut transformations: Query<&mut Transform,
     With<Player>>,
     mut commands: Commands,
-    player: Res<Player>) {
-    for key_pressed in keyboard_input.get_pressed() {
-        if let Some(mut transformation) = transformations.iter_mut().next() {
-            match key_pressed {
-                KeyCode::Left => {
-                    transformation.translation.x -= 3.0;
-                    transformation.rotation = Quat::from_rotation_y(std::f32::consts::PI);
-                },
-                KeyCode::Right => {
-                    transformation.translation.x += 3.0;
-                    transformation.rotation = Quat::default();
-                }
-                _ => {},
-            }
+    mut player: ResMut<Player>) {
+
+    let mut spawn = false;
+    for _ in gamepad_input.get_pressed() {
+        if player.has_spawned {
+            break;
         } else {
-            match key_pressed {
-                _ => spawn_player(&mut commands, &player),
+            player.has_spawned = true;
+            spawn = true;
+            spawn_player(&mut commands, &player);
+        }
+    }
+
+    let mut movement_value: Option<f32> = None;
+    if let Some(value) = axes.get(GamepadAxis(Gamepad(0), GamepadAxisType::LeftStickX)) {
+        movement_value = Some(value * MAX_INPUT_SPEED);
+    }
+    for key_pressed in keyboard_input.get_pressed() {
+        match key_pressed {
+            KeyCode::Left => { movement_value = Some(MAX_INPUT_SPEED * -1.0); },
+            KeyCode::Right => { movement_value = Some(MAX_INPUT_SPEED); },
+            _ => {
+                if !spawn && !player.has_spawned {
+                    player.has_spawned = true;
+                    spawn = true;
+                    spawn_player(&mut commands, &player);
+                }
+            },
+        };
+    }
+    if let Some(movement_value) = movement_value {
+        if let Some(mut transformation) = transformations.iter_mut().next() {
+            transformation.translation.x += movement_value;
+            if movement_value < 0.0 {
+                transformation.rotation = Quat::from_rotation_y(std::f32::consts::PI);
+            } else if movement_value > 0.0 {
+                transformation.rotation = Quat::default();
             }
         }
     }
