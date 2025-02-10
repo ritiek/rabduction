@@ -11,10 +11,28 @@ The name **Rabduction!** comes from (R)ust + a similar old-school Android game c
 
 ## Running
 
+### Nix
+
+If you have flakes enabled, you can also build and execute the game using:
 ```
 $ git clone https://github.com/ritiek/rabduction
 $ cd rabduction
-$ cargo run --features bevy/dynamic --release
+$ nix build
+$ nix run
+```
+
+And development envrionment can be set up through (adds rustc, cargo, etc. to PATH):
+```
+$ nix develop
+$ cargo build --locked
+```
+
+### Others
+
+```
+$ git clone https://github.com/ritiek/rabduction
+$ cd rabduction
+$ cargo run --locked --release
 ```
 
 Press any key on the keyboard to spawn the player and then use left and right arrow keys to
