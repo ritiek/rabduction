@@ -44,7 +44,9 @@
           ];
 
           postInstall = ''
+            cp -r assets $out/
             wrapProgram $out/bin/${pname} \
+              --set ASSETS $out/assets \
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath (with pkgs; [
                 libGL
                 libxkbcommon

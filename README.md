@@ -13,18 +13,23 @@ The name **Rabduction!** comes from (R)ust + a similar old-school Android game c
 
 ### Nix
 
-If you have flakes enabled, you can also build and execute the game using:
+If you have flakes enabled, you can try out the game using:
+```
+$ nix run github:ritiek/rabduction
+```
+
+And development environment can be set up through (adds rustc, cargo, etc. to PATH):
 ```
 $ git clone https://github.com/ritiek/rabduction
 $ cd rabduction
-$ nix build
-$ nix run
-```
-
-And development envrionment can be set up through (adds rustc, cargo, etc. to PATH):
-```
 $ nix develop
 $ cargo build --locked
+```
+
+You can also build and execute the game using:
+```
+$ nix build
+$ nix run
 ```
 
 ### Others

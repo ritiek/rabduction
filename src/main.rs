@@ -6,8 +6,12 @@ use bevy::sprite::collide_aabb::collide;
 use rand::{thread_rng, Rng};
 use rand::seq::SliceRandom;
 
+use std::path::PathBuf;
+
+
 const GRAVITY: f32 = 0.5;
 const MAX_INPUT_SPEED: f32 = 3.0;
+
 
 #[derive(Default, Debug, PartialEq, Clone)]
 struct Sounds {
@@ -39,12 +43,14 @@ struct Scoreboard {
 struct Background;
 
 fn setup(mut commands: Commands, asset_server: ResMut<AssetServer>, mut materials: ResMut<Assets<ColorMaterial>>) {
+    let assets_path = PathBuf::from(std::env::var("ASSETS").unwrap_or(String::from("./")));
+
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     commands.spawn_bundle(UiCameraBundle::default());
 
     commands
         .spawn_bundle(SpriteBundle {
-            material: materials.add(asset_server.load("textures/background.png").into()),
+            material: materials.add(asset_server.load(assets_path.join("textures/background.png")).into()),
             sprite: Sprite::new(Vec2::new(7680.0, 4320.0)),
             transform: Transform::from_translation(
                 Vec3::new(0.0, 1650.0, 0.0,)),
@@ -53,7 +59,7 @@ fn setup(mut commands: Commands, asset_server: ResMut<AssetServer>, mut material
         .insert(Background);
 
     commands.insert_resource(Player {
-        material: materials.add(asset_server.load("sprites/tux-1.png").into()),
+        material: materials.add(asset_server.load(assets_path.join("sprites/tux-1.png")).into()),
         size: (25.0, 40.0),
         velocity: 25.0,
         has_spawned: false,
@@ -62,11 +68,11 @@ fn setup(mut commands: Commands, asset_server: ResMut<AssetServer>, mut material
     commands.insert_resource(
         vec![
             Brick {
-                material: materials.add(asset_server.load("sprites/platform-1.png").into()),
+                material: materials.add(asset_server.load(assets_path.join("sprites/platform-1.png")).into()),
                 size: (60.0, 20.0),
             },
             Brick {
-                material: materials.add(asset_server.load("sprites/platform-2.png").into()),
+                material: materials.add(asset_server.load(assets_path.join("sprites/platform-2.png")).into()),
                 size: (90.0, 20.0),
             },
         ]
@@ -74,27 +80,27 @@ fn setup(mut commands: Commands, asset_server: ResMut<AssetServer>, mut material
     commands.insert_resource(
         Sounds {
             collisions: vec![
-                asset_server.load("sounds/coll-1.mp3"),
-                asset_server.load("sounds/coll-2.mp3"),
-                asset_server.load("sounds/coll-3.mp3"),
-                asset_server.load("sounds/coll-4.mp3"),
+                asset_server.load(assets_path.join("sounds/coll-1.mp3")),
+                asset_server.load(assets_path.join("sounds/coll-2.mp3")),
+                asset_server.load(assets_path.join("sounds/coll-3.mp3")),
+                asset_server.load(assets_path.join("sounds/coll-4.mp3")),
             ],
             // FIXME: Replace with some actual background music
-            background: asset_server.load("sounds/coll-4.mp3"),
+            background: asset_server.load(assets_path.join("sounds/coll-4.mp3")),
         }
     );
     commands.insert_resource(Scoreboard {
         score: 0,
     });
 
-    let font_handle = asset_server.load("fonts/FiraSans-Bold.ttf");
+    let font_handle = asset_server.load(assets_path.join("fonts/FiraSans-Bold.ttf"));
     commands.spawn_bundle(TextBundle {
         text: Text {
             sections: vec![
                 TextSection {
                     value: "Score: 0".to_string(),
                     style: TextStyle {
-                        font: font_handle.clone(),
+                        font: font_handle,
                         font_size: 25.0,
                         color: Color::rgb(1.0, 1.0, 1.0),
                     },
@@ -116,7 +122,7 @@ fn setup(mut commands: Commands, asset_server: ResMut<AssetServer>, mut material
 }
 
 fn scoreboard_system(mut transformations: Query<&mut Transform, With<Player>>, player: Res<Player>, mut scoreboard: ResMut<Scoreboard>, mut query: Query<&mut Text>) {
-    if let Some(_) = transformations.iter_mut().next() {
+    if transformations.iter_mut().next().is_some() {
         let mut text = query.single_mut().unwrap();
         if player.dead {
             text.sections[0].value = format!("Final Score: {}", scoreboard.score);
@@ -224,7 +230,7 @@ fn spawn_brick(mut commands: Commands, bricks: Res<Vec<Brick>>) {
         })
         .insert(Brick {
             material: brick.material.clone(),
-            size: brick.size.clone(),
+            size: brick.size,
         });
 }
 
